@@ -230,3 +230,6 @@ pyrightconfig.json
 
 # binary
 rr
+
+# md temp report
+mdout.md
