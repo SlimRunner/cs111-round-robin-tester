@@ -71,7 +71,7 @@ def getArguments(*args: str) -> ArgsWrapper:
             f"""\
             Allows different modes of running your test programs. The options are:
                 - {TestingOptions.UNIT_TEST}: runs each program against the expected output and shows a diff.
-                - {TestingOptions.GEN_CASES}: runs each program as-is and shows the output.
+                - {TestingOptions.GEN_CASES}: runs each program as-is and prints the output in a markdown report.
             """
         ),
     )
