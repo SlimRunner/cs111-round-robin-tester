@@ -179,9 +179,7 @@ class TesterBase:
             self.add_item(self.__key_map[-1], state, [])
 
         elif (
-            state == "payload-end" or
-            state == "results-end" or
-            state == "generator-end"
+            state == "payload-end" or state == "results-end" or state == "generator-end"
         ):
             pass
 
@@ -206,9 +204,9 @@ class UnitTester(TesterBase):
     def run_section(self, unit: dict[str, list[str]]):
         payload = unit[TesterBase.PAYLOAD]
         cases = (tuple(test.split(",")) for test in unit[TesterBase.RESULTS])
-        generator = ','.join(unit[TesterBase.GENERATOR])
+        generator = ",".join(unit[TesterBase.GENERATOR])
         generator = generator.split(",")
-        
+
         passed = True
         prog_out: list[str] = []
 
@@ -221,7 +219,9 @@ class UnitTester(TesterBase):
                     cl_result: str = self.callback(test_file.name, qval)
                 except Exception as err:
                     passed = False
-                    prog_out.append(f"Program exited with error for quantum of {qval}: {str(err)}")
+                    prog_out.append(
+                        f"Program exited with error for quantum of {qval}: {str(err)}"
+                    )
                     continue
 
                 lines = cl_result.split("\n")
@@ -229,11 +229,17 @@ class UnitTester(TesterBase):
                 testAvgRespTime = float(lines[1].split(":")[1])
                 if testAvgWaitTime != float(avgwait):
                     prog_out.append(
-                        f"❌ Average wait: recieved {testAvgWaitTime}, " + f"expected {float(avgwait)}" + f", quantum {qval}"
+                        f"❌ Average wait: recieved {testAvgWaitTime}, "
+                        + f"expected {float(avgwait)}"
+                        + f", quantum {qval}"
                     )
                     passed = False
                 if testAvgRespTime != float(avgresp):
-                    prog_out.append(f"❌ Average response: recieved {testAvgRespTime}, expected {float(avgresp)}, quantum {qval}")
+                    prog_out.append(
+                        f"❌ Average response: recieved {testAvgRespTime}, "
+                        + f"expected {float(avgresp)}, "
+                        + f"quantum {qval}"
+                    )
                     passed = False
                 if passed:
                     prog_out.append("✔ both tests passed for quantum of {qval}")
@@ -255,7 +261,7 @@ class ResultGenerator(TesterBase):
 
     def run_section(self, unit: dict[str, list[str]]):
         payload = unit[TesterBase.PAYLOAD]
-        generator = ','.join(unit[TesterBase.GENERATOR])
+        generator = ",".join(unit[TesterBase.GENERATOR])
         generator = generator.split(",")
         prog_out: list[str] = []
 
@@ -275,7 +281,9 @@ class ResultGenerator(TesterBase):
                 try:
                     cl_result: str = self.callback(test_file.name, qval)
                 except Exception as err:
-                    prog_out.append(f"Program exited with error for quantum of {qval}: {str(err)}")
+                    prog_out.append(
+                        f"Program exited with error for quantum of {qval}: {str(err)}"
+                    )
                     continue
                 lines = cl_result.split("\n")
                 testAvgWaitTime = lines[0].split(":")[1]
@@ -295,7 +303,7 @@ class ResultGenerator(TesterBase):
 
 def project_callback(filename: str, q_size: str):
     PROG_NAME = os.path.abspath("./rr")
-    retval= None
+    retval = None
 
     try:
         retval = subprocess.check_output((PROG_NAME, filename, q_size)).decode()
