@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import tempfile
 import subprocess
 from unittest.mock import patch
@@ -43,6 +44,39 @@ class TestResults(PrintableReport):
         super().print_report(out_report)
 
 
+class ProfilerStats(PrintableReport):
+    def __init__(self, test_path: str) -> None:
+        super().__init__(test_path)
+        self.__start = None
+        self.__records: list[float] = []
+
+    def start(self):
+        self.__start = time.time()
+
+    def record(self):
+        if self.__start is None:
+            raise RuntimeError("Cannot call end before start")
+        self.__records.append(time.time() - self.__start)
+        self.__start = None
+
+    def total_time(self):
+        return sum(self.__records)
+
+    def average_time(self):
+        if len(self.__records):
+            return self.total_time() / len(self.__records)
+        else:
+            return float("NaN")
+
+    def print_report(self):
+        COLSIZE = 14
+        out_report = []
+        out_report.append(f"{'suite:':<{COLSIZE}}{self.suite_name}")
+        out_report.append(f"{'average time:':<{COLSIZE}}{1000 * self.average_time()} ms")
+        out_report.append(f"{'total time:':<{COLSIZE}}{1000 * self.total_time()} ms\n")
+        super().print_report(out_report)
+
+
 class NullReport(PrintableReport):
     def print_report(self):
         pass
@@ -77,11 +111,11 @@ class TesterBase:
 
                 state = self.advance_fsm(state, lnw)
 
-    def callback(self, prog_arg: str, quantum_size: str):
+    def callback(self, prog_arg: str, quantum_size: str, *args):
         if len(self.__kwargs):
-            return self.__callback(prog_arg, quantum_size, **self.__kwargs)
+            return self.__callback(prog_arg, quantum_size, *args, **self.__kwargs)
         else:
-            return self.__callback(prog_arg, quantum_size)
+            return self.__callback(prog_arg, quantum_size, *args)
 
     def validate_uniqueness(self, item: dict, key: str):
         if key in item:
@@ -372,12 +406,58 @@ class ResultGenerator(TesterBase):
         return (False, prog_out)
 
 
-def project_callback(filename: str, q_size: str):
+class BatchRun(TesterBase):
+    def __init__(self, test_path: str, callback, **kwargs):
+        super().__init__(test_path, callback, **kwargs)
+        self.result = ProfilerStats(test_path)
+
+    def trim_output(self, received: str):
+        if received.endswith("\n"):
+            received = received[:-1]
+        return received
+
+    def run_section(self, unit: dict[str, list[str]]):
+        payload = unit[TesterBase.PAYLOAD]
+        generator = ",".join(unit[TesterBase.GENERATOR])
+        generator = generator.split(",")
+        prog_out: list[str] = []
+
+        with tempfile.NamedTemporaryFile() as test_file:
+            test_file.writelines(str.encode(s + "\n") for s in payload)
+            test_file.flush()
+
+            for qval in generator:
+                try:
+                    self.result.start()
+                    cl_result: str = self.callback(test_file.name, qval, "1")
+                except Exception as err:
+                    prog_out.append(
+                        f"Crashed (quantum={qval}): {str(err)}"
+                    )
+                    continue
+                finally:
+                    self.result.record()
+                lines = cl_result.split("\n")
+                if lines[-1] == "": lines.pop()
+                prog_out.append("```")
+                prog_out.append(f"quantum: {qval}")
+                prog_out.extend(f"{TesterBase.TAB}{p}" for p in payload[1:])
+                prog_out.extend(lines)
+                prog_out.append("```")
+                prog_out.append("")
+
+        return (False, prog_out)
+
+
+def project_callback(filename: str, q_size: str, *args):
     PROG_NAME = os.path.abspath("./rr")
     retval = None
 
     try:
-        retval = subprocess.check_output((PROG_NAME, filename, q_size)).decode()
+        if args:
+            retval = subprocess.check_output((PROG_NAME, filename, q_size, *args)).decode()
+        else:
+            retval = subprocess.check_output((PROG_NAME, filename, q_size)).decode()
     except Exception as err:
         raise err
 
@@ -393,6 +473,10 @@ if __name__ == "__main__":
         tester = UnitTester("./unit_tests.md", project_callback)
     elif args.test_type == TestingOptions.GEN_CASES:
         tester = ResultGenerator("./unit_tests.md", project_callback)
+    elif args.test_type == TestingOptions.TIME_PROG:
+        tester = BatchRun("./unit_tests.md", project_callback)
+    else:
+        raise SystemExit(f"Unexpected test type: {args.test_type}")
 
     if tester is None:
         subprocess.check_output(("make", "clean"))

@@ -14,7 +14,8 @@ class BlankLinesHelpFormatter(RawTextHelpFormatter):
 class TestingOptions:
     UNIT_TEST = "testit"
     GEN_CASES = "makeit"
-    OPTIONS = {UNIT_TEST, GEN_CASES}
+    TIME_PROG = "timeit"
+    OPTIONS = {UNIT_TEST, GEN_CASES, TIME_PROG}
     DEFAULT = UNIT_TEST
 
     def __init__(self, opt: str) -> None:
@@ -71,7 +72,8 @@ def getArguments(*args: str) -> ArgsWrapper:
             f"""\
             Allows different modes of running your test programs. The options are:
                 - {TestingOptions.UNIT_TEST}: runs each program against the expected output and shows a diff.
-                - {TestingOptions.GEN_CASES}: runs each program as-is and prints the output in a markdown report.
+                - {TestingOptions.GEN_CASES}: runs each program and prints the output in a markdown unit test report.
+                - {TestingOptions.TIME_PROG}: runs each program as-is, prints the output, and times it.
             """
         ),
     )
