@@ -107,7 +107,60 @@ class TesterBase:
         key = remove_hash.sub("", key).lower()
         return key not in filter
 
+    def make_md_table(self, entries: list[tuple], alignment: tuple[str], indentation=0):
+        if not entries:
+            return []
+
+        table_out: list[str] = []
+        TAB = TesterBase.TAB * indentation
+        ALIGN_SEP = {
+            "N": (" "," "),
+            "L": (":"," "),
+            "R": (" ",":"),
+            "C": (":",":"),
+        }
+        ALIGN_FMT = {
+            "N": "<",
+            "L": "<",
+            "R": ">",
+            "C": "^",
+        }
+        format_row = lambda st: TAB + "|" + st + "|"
+        pipe_join = lambda it: "|".join(str(i) for i in it)
+        get_divs = lambda sz, al: (align_divs(*a, "-" * s) for s, a in zip(sz, al))
+        align_divs = lambda L, R, s: f"{L}{s}{R}"
+
+        COLS = len(entries[0])
+        ALSZ = len(alignment)
+        col_size = [0] * COLS
+
+        if COLS < len(alignment):
+            alignment = alignment[:COLS]
+        elif COLS > len(alignment):
+            alignment = (alignment[i] if i < ALSZ else "N" for i in range(COLS))
+
+        sep_aligners = [ALIGN_SEP[a.upper()] for a in alignment]
+        fmt_aligners = [ALIGN_FMT[a.upper()] for a in alignment]
+
+        for row in entries:
+            if len(row) != COLS:
+                return ["Error: row size must be uniform"]
+            for i, cell in enumerate(row):
+                col_size[i] = max(col_size[i], len(str(cell)))
+
+        table_out.append(format_row(pipe_join(get_divs(col_size, sep_aligners))))
+
+        for row in entries:
+            row_str = []
+            for cell, size, alg in zip(row, col_size, fmt_aligners):
+                row_str.append(f" {cell:{alg}{size}} ")
+            table_out.append(format_row(pipe_join(row_str)))
+
+        table_out[0], table_out[1] = table_out[1], table_out[0]
+        return table_out
+
     def run_tests(self, section_filter: set[str], verbose: bool):
+        self._verbose = verbose
         print_buffer: list[str] = []
         section_filter = {i.lower() for i in section_filter}
 
@@ -207,46 +260,64 @@ class UnitTester(TesterBase):
         generator = ",".join(unit[TesterBase.GENERATOR])
         generator = generator.split(",")
 
-        passed = True
+        INDENT_LEVEL = 0
+        passed_all = True
         prog_out: list[str] = []
 
         with tempfile.NamedTemporaryFile() as test_file:
             test_file.writelines(str.encode(s + "\n") for s in payload)
             test_file.flush()
 
+            md_table = [("qm", "average", "received", "expected", "status")]
+            md_format = ("R", "L", "R", "R", "L")
+            err_iter = 0
+
             for qval, avgwait, avgresp in cases:
                 try:
                     cl_result: str = self.callback(test_file.name, qval)
                 except Exception as err:
-                    passed = False
+                    passed_all = False
+                    err_iter += 1
+                    md_table.append(
+                        (qval, "none", "crashed", "n/a", f"see error {err_iter}")
+                    )
                     prog_out.append(
-                        f"Program exited with error for quantum of {qval}: {str(err)}"
+                        TesterBase.TAB * INDENT_LEVEL
+                        + f"{err_iter}. Crashed "
+                        + f"(quantum={qval}): {str(err)}"
                     )
                     continue
 
                 lines = cl_result.split("\n")
                 testAvgWaitTime = float(lines[0].split(":")[1])
                 testAvgRespTime = float(lines[1].split(":")[1])
-                if testAvgWaitTime != float(avgwait):
-                    prog_out.append(
-                        f"❌ Average wait: recieved {testAvgWaitTime}, "
-                        + f"expected {float(avgwait)}"
-                        + f", quantum {qval}"
-                    )
-                    passed = False
-                if testAvgRespTime != float(avgresp):
-                    prog_out.append(
-                        f"❌ Average response: recieved {testAvgRespTime}, "
-                        + f"expected {float(avgresp)}, "
-                        + f"quantum {qval}"
-                    )
-                    passed = False
-                if passed:
-                    prog_out.append("✔ both tests passed for quantum of {qval}")
+                status_msg = ""
 
+                passed = True
+                if testAvgWaitTime != float(avgwait):
+                    status_msg = "FAIL"
+                    passed_all = passed = False
+                else:
+                    status_msg = "pass"
+
+                if self._verbose or not passed:
+                    md_table.append((qval, "wait", testAvgWaitTime, float(avgwait), status_msg))
+
+                passed = True
+                if testAvgRespTime != float(avgresp):
+                    status_msg = "FAIL"
+                    passed_all = passed = False
+                else:
+                    status_msg = "pass"
+
+                if self._verbose or not passed:
+                    md_table.append((qval, "response", testAvgRespTime, float(avgresp), status_msg))
+
+        if err_iter: prog_out.append("")
+        prog_out.extend(self.make_md_table(md_table, md_format, INDENT_LEVEL))
         prog_out.append("")
-        self.result.add_entry(passed)
-        return (passed, prog_out)
+        self.result.add_entry(passed_all)
+        return (passed_all, prog_out)
 
 
 class ResultGenerator(TesterBase):
@@ -282,7 +353,7 @@ class ResultGenerator(TesterBase):
                     cl_result: str = self.callback(test_file.name, qval)
                 except Exception as err:
                     prog_out.append(
-                        f"Program exited with error for quantum of {qval}: {str(err)}"
+                        f"Crashed (quantum={qval}): {str(err)}"
                     )
                     continue
                 lines = cl_result.split("\n")
