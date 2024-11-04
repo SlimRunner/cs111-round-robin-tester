@@ -125,6 +125,9 @@ class TesterBase:
                 print_buffer.append(name)
                 print_buffer.extend(msg)
 
+        if print_buffer[-1] == "":
+            print_buffer.pop()
+
         print("\n".join(print_buffer))
 
     def update_sections(self, state, line):
@@ -225,7 +228,9 @@ class UnitTester(TesterBase):
                 testAvgWaitTime = float(lines[0].split(":")[1])
                 testAvgRespTime = float(lines[1].split(":")[1])
                 if testAvgWaitTime != float(avgwait):
-                    prog_out.append(f"❌ Average wait: recieved {testAvgWaitTime}, expected {float(avgwait)}, quantum {qval}")
+                    prog_out.append(
+                        f"❌ Average wait: recieved {testAvgWaitTime}, " + f"expected {float(avgwait)}" + f", quantum {qval}"
+                    )
                     passed = False
                 if testAvgRespTime != float(avgresp):
                     prog_out.append(f"❌ Average response: recieved {testAvgRespTime}, expected {float(avgresp)}, quantum {qval}")
@@ -233,6 +238,7 @@ class UnitTester(TesterBase):
                 if passed:
                     prog_out.append("✔ both tests passed for quantum of {qval}")
 
+        prog_out.append("")
         self.result.add_entry(passed)
         return (passed, prog_out)
 
