@@ -63,7 +63,7 @@ class ArgsWrapper:
 
 def getArguments(*args: str) -> ArgsWrapper:
     arg_parser = ArgumentParser(
-        prog="main",
+        prog="rrtester",
         description="Tests round robin project and also generates test cases.",
         formatter_class=BlankLinesHelpFormatter,
     )
