@@ -42,6 +42,7 @@ class ArgsWrapper:
         self.__test_type = args.test_type
         self.__section = args.section
         self.__verbose = args.verbose
+        self.__args = args.args
 
     @property
     def test_type(self) -> TestingOptions:
@@ -54,6 +55,10 @@ class ArgsWrapper:
     @property
     def verbose(self) -> str:
         return self.__verbose
+
+    @property
+    def arguments(self) -> list[str]:
+        return self.__args
 
 
 def getArguments(*args: str) -> ArgsWrapper:
@@ -86,6 +91,17 @@ def getArguments(*args: str) -> ArgsWrapper:
         action="store_true",
         help="If present testing mode will show the passed cases too.",
     )
+    arg_parser.add_argument(
+        "--args",
+        nargs="+",
+        help=textwrap.dedent(
+            """\
+            Pass extra arguments to your round robin program. The tester passes a file path
+            and quantum number on its own. This is if you wish to pass extra ones for
+            debugging purposes.
+            """
+        ),
+    )
 
     if len(args) > 0:
         p_args = arg_parser.parse_args(list(args))
@@ -94,5 +110,6 @@ def getArguments(*args: str) -> ArgsWrapper:
 
     p_args.test_type = TestingOptions(p_args.test_type[0])
     p_args.section = set(p_args.section) if p_args.section else set()
+    p_args.args = p_args.args if p_args.args else []
 
     return ArgsWrapper(p_args)

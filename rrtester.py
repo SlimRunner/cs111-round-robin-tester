@@ -79,7 +79,7 @@ class ProfilerStats(PrintableReport):
 
 class NullReport(PrintableReport):
     def print_report(self):
-        pass
+        pass # nothing to do here
 
 
 class TesterBase:
@@ -88,9 +88,9 @@ class TesterBase:
     GENERATOR = "generator"
     TAB = "  "
 
-    def __init__(self, test_path: str, callback, **kwargs):
+    def __init__(self, test_path: str, callback, *args):
         self.__callback = callback
-        self.__kwargs = kwargs
+        self.__args = args
         self.__ttree: dict[str, dict[str, dict[str, list[str]]]] = dict()
         self.__test_path = test_path
         self.__key_map = []
@@ -112,10 +112,7 @@ class TesterBase:
                 state = self.advance_fsm(state, lnw)
 
     def callback(self, prog_arg: str, quantum_size: str, *args):
-        if len(self.__kwargs):
-            return self.__callback(prog_arg, quantum_size, *args, **self.__kwargs)
-        else:
-            return self.__callback(prog_arg, quantum_size, *args)
+        return self.__callback(prog_arg, quantum_size, *self.__args)
 
     def validate_uniqueness(self, item: dict, key: str):
         if key in item:
@@ -268,7 +265,7 @@ class TesterBase:
         elif (
             state == "payload-end" or state == "results-end" or state == "generator-end"
         ):
-            pass
+            pass # nothing to do here
 
         else:
             raise SyntaxError(
@@ -279,8 +276,8 @@ class TesterBase:
 
 
 class UnitTester(TesterBase):
-    def __init__(self, test_path: str, callback, **kwargs):
-        super().__init__(test_path, callback, **kwargs)
+    def __init__(self, test_path: str, callback, *args):
+        super().__init__(test_path, callback, *args)
         self.result = TestResults(test_path)
 
     def trim_output(self, received: str):
@@ -355,8 +352,8 @@ class UnitTester(TesterBase):
 
 
 class ResultGenerator(TesterBase):
-    def __init__(self, test_path: str, callback, **kwargs):
-        super().__init__(test_path, callback, **kwargs)
+    def __init__(self, test_path: str, callback, *args):
+        super().__init__(test_path, callback, *args)
         self.result = NullReport(test_path)
 
     def trim_output(self, received: str):
@@ -407,8 +404,8 @@ class ResultGenerator(TesterBase):
 
 
 class BatchRun(TesterBase):
-    def __init__(self, test_path: str, callback, **kwargs):
-        super().__init__(test_path, callback, **kwargs)
+    def __init__(self, test_path: str, callback, *args):
+        super().__init__(test_path, callback, *args)
         self.result = ProfilerStats(test_path)
 
     def trim_output(self, received: str):
@@ -426,6 +423,12 @@ class BatchRun(TesterBase):
             test_file.writelines(str.encode(s + "\n") for s in payload)
             test_file.flush()
 
+            md_table = [("pid", "arrival", "burst")]
+            md_table.extend(p.split(",") for p in payload[1:])
+            md_format = ("R", "R", "R")
+            prog_out.extend(self.make_md_table(md_table, md_format))
+            prog_out.append("")
+
             for qval in generator:
                 try:
                     self.result.start()
@@ -439,9 +442,8 @@ class BatchRun(TesterBase):
                     self.result.record()
                 lines = cl_result.split("\n")
                 if lines[-1] == "": lines.pop()
+                prog_out.append(f"### Run with quantum {qval}")
                 prog_out.append("```")
-                prog_out.append(f"quantum: {qval}")
-                prog_out.extend(f"{TesterBase.TAB}{p}" for p in payload[1:])
                 prog_out.extend(lines)
                 prog_out.append("```")
                 prog_out.append("")
@@ -470,11 +472,11 @@ if __name__ == "__main__":
     subprocess.check_output("make")
 
     if args.test_type == TestingOptions.UNIT_TEST:
-        tester = UnitTester("./unit_tests.md", project_callback)
+        tester = UnitTester("./unit_tests.md", project_callback, *args.arguments)
     elif args.test_type == TestingOptions.GEN_CASES:
-        tester = ResultGenerator("./unit_tests.md", project_callback)
+        tester = ResultGenerator("./unit_tests.md", project_callback, *args.arguments)
     elif args.test_type == TestingOptions.TIME_PROG:
-        tester = BatchRun("./unit_tests.md", project_callback)
+        tester = BatchRun("./unit_tests.md", project_callback, *args.arguments)
     else:
         raise SystemExit(f"Unexpected test type: {args.test_type}")
 
@@ -485,4 +487,3 @@ if __name__ == "__main__":
     tester.run_tests(**args.filters, verbose=args.verbose)
     tester.result.print_report()
     subprocess.check_output(("make", "clean"))
-    pass
