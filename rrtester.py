@@ -40,7 +40,17 @@ def project_callback(filename: str, q_size: str, *args):
     return retval
 
 
+def validate_required_files():
+    INVALID_DIR = any(
+        not os.path.exists(os.path.abspath(p))
+        for p in ["./rr.c", "./Makefile", "./README.md"]
+    )
+    if INVALID_DIR:
+        raise SystemError("rr.c, Makefile, or README.md is missing in your directory")
+
+
 if __name__ == "__main__":
+    validate_required_files()
     args = getArguments()
     subprocess.check_output("make")
     try:
