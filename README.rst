@@ -30,7 +30,7 @@ The simplest way to call the tester is like this:
 
     python3 ./rrtester.py
 
-It will read all the test cases in the file :download:`unit_tests.md <unit_tests.md>` and match it against the expected output specified there. When it is done, it will print a report in the terminal with all the info you need to debug your code. The report is markdown compatible so you can redirect it like this:
+It will read all the test cases in the file `unit_tests.md`_ and match it against the expected output specified there. When it is done, it will print a report in the terminal with all the info you need to debug your code. The report is markdown compatible so you can redirect it like this:
 
 .. code-block:: shell
 
